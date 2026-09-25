@@ -258,8 +258,11 @@ code.inline { font-family: var(--mono); background: var(--surface-2); padding: 1
 /* ---------- 讨论区 ---------- */
 .thread { border-bottom: 1px solid var(--border); padding: 14px 0; }
 .thread:last-child { border-bottom: none; }
+.thread.pinned { background: var(--yellow-bg); border-radius: 8px; padding-left: 10px; padding-right: 10px; }
 .thread .t-title { font-size: 15px; font-weight: 600; color: var(--text); }
 .thread .t-meta { color: var(--text-muted); font-size: 12px; margin-top: 3px; }
+.tag-pin { background: var(--red-bg); color: var(--red); border-color: transparent; margin-right: 6px; }
+.tag-cat { background: var(--cyan-bg); color: var(--cyan); border-color: transparent; }
 .reply { border-left: 3px solid var(--border); padding: 10px 14px; margin: 10px 0; background: var(--surface-2); border-radius: 6px; }
 .reply .r-meta { font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
 

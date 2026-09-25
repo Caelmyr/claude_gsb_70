@@ -23,6 +23,13 @@
         <select id="problemFilter" style="width:auto" onchange="load()">
           <option value="">全部题目</option>
         </select>
+        <select id="catFilter" style="width:auto" onchange="load()">
+          <option value="">全部分类</option>
+          <option value="求助">求助</option>
+          <option value="题解">题解</option>
+          <option value="闲聊">闲聊</option>
+          <option value="综合">综合（默认）</option>
+        </select>
         <button class="btn btn-outline btn-sm" onclick="load()">🔄 刷新</button>
       </div>
       <div id="threadList"></div>
@@ -36,16 +43,19 @@
 
     async function load() {
       const pid = OJ.el("problemFilter").value;
+      const cat = OJ.el("catFilter").value;
       const params = new URLSearchParams();
       if (pid) params.set("problem_id", pid);
+      if (cat) params.set("category", cat);
       const box = OJ.el("threadList");
       try {
         const data = await OJ.api("/forum?" + params.toString());
         if (!data.items.length) { box.innerHTML = `<div class="empty">暂无帖子</div>`; return; }
         box.innerHTML = data.items.map(t => `
-          <div class="thread">
-            <div><a class="t-title" onclick="view('${OJ.esc(t.id)}')" style="cursor:pointer">${OJ.esc(t.title)}</a>
-              ${t.problem_id ? `<span class="tag" style="margin-left:6px">${OJ.esc(t.problem_id)}</span>` : ""}</div>
+          <div class="thread${t.pinned ? " pinned" : ""}">
+            <div>${t.pinned ? `<span class="tag tag-pin">📌 置顶</span>` : ""}<a class="t-title" onclick="view('${OJ.esc(t.id)}')" style="cursor:pointer">${OJ.esc(t.title)}</a>
+              <span class="tag tag-cat" style="margin-left:6px">${OJ.esc(t.category || "综合")}</span>
+              ${t.problem_id ? `<span class="tag">${OJ.esc(t.problem_id)}</span>` : ""}</div>
             <div class="t-meta">${OJ.esc(t.author_name)} · ${OJ.fmtTime(t.created_at)} · ${(t.replies || []).length} 回复</div>
           </div>`).join("");
       } catch (e) { box.innerHTML = `<div class="empty">${OJ.esc(e.message)}</div>`; }
@@ -69,7 +79,13 @@
       if (!requireLogin()) return;
       const body = `
         <div class="form-group"><label>标题</label><input id="t_title"></div>
-        <div class="form-row">
+        <div class="form-row-3">
+          <div class="form-group"><label>分类</label><select id="t_cat">
+            <option value="">综合（默认）</option>
+            <option value="求助">求助</option>
+            <option value="题解">题解</option>
+            <option value="闲聊">闲聊</option>
+          </select></div>
           <div class="form-group"><label>关联题目（可选）</label><select id="t_pid"><option value="">不关联</option>${OJ.el("problemFilter").innerHTML}</select></div>
           <div class="form-group"><label>关联竞赛（可选）</label><input id="t_cid" placeholder="竞赛 ID"></div>
         </div>
@@ -84,6 +100,7 @@
       const body = {
         title: document.getElementById("t_title").value.trim(),
         content: document.getElementById("t_content").value.trim(),
+        category: document.getElementById("t_cat").value,
         problem_id: document.getElementById("t_pid").value || null,
         contest_id: document.getElementById("t_cid").value.trim() || null,
       };
@@ -101,20 +118,30 @@
         const replies = (t.replies || []).map(r => `
           <div class="reply"><div class="r-meta">${OJ.esc(r.author_name)} · ${OJ.fmtTime(r.created_at)}</div><div>${OJ.esc(r.content)}</div></div>`).join("");
         const body = `
-          <h4 style="margin-bottom:6px">${OJ.esc(t.title)}</h4>
-          <div class="muted" style="font-size:12px;margin-bottom:12px">${OJ.esc(t.author_name)} · ${OJ.fmtTime(t.created_at)}${t.problem_id ? " · " + OJ.esc(t.problem_id) : ""}</div>
+          <h4 style="margin-bottom:6px">${t.pinned ? `<span class="tag tag-pin">📌 置顶</span> ` : ""}${OJ.esc(t.title)}</h4>
+          <div class="muted" style="font-size:12px;margin-bottom:12px">${OJ.esc(t.author_name)} · ${OJ.fmtTime(t.created_at)} · <span class="tag tag-cat">${OJ.esc(t.category || "综合")}</span>${t.problem_id ? " · " + OJ.esc(t.problem_id) : ""}</div>
           <div style="white-space:pre-wrap">${OJ.esc(t.content)}</div>
           <hr style="border:none;border-top:1px solid var(--border);margin:16px 0">
           <div class="card-title">回复（${(t.replies || []).length}）</div>
           ${replies || '<div class="muted">暂无回复</div>'}
           <div class="form-group mt-16"><label>发表回复</label><textarea id="r_content" rows="3"></textarea></div>
           <div class="modal-actions" style="margin-top:0">
+            ${OJ.isAdmin() ? `<button class="btn btn-outline" onclick="pinThread('${OJ.esc(t.id)}', ${t.pinned ? "false" : "true"})">${t.pinned ? "取消置顶" : "置顶"}</button>` : ""}
             ${(OJ.currentUser() && (t.author === OJ.currentUser().id || OJ.isAdmin())) ? `<button class="btn btn-danger" onclick="delThread('${OJ.esc(t.id)}')">删除帖子</button>` : ""}
             <span style="flex:1"></span>
             <button class="btn btn-primary" onclick="reply('${OJ.esc(t.id)}')">回复</button>
           </div>`;
         const mask = OJ.openModal(t.title, body);
         mask.querySelector(".modal").style.maxWidth = "760px";
+      } catch (e) { OJ.toast(e.message, "error"); }
+    }
+
+    async function pinThread(id, pinned) {
+      try {
+        await OJ.api("/forum/" + id + "/pin", { method: "POST", body: { pinned } });
+        OJ.toast(pinned ? "已置顶" : "已取消置顶", "success");
+        document.querySelector(".modal-mask").remove();
+        load();
       } catch (e) { OJ.toast(e.message, "error"); }
     }
 
